@@ -12,4 +12,4 @@ Some little simulations using ESP32 DEVKIT V1 and SH110X LCD
 - Sinewave
 - Sort of 3d tunnel
 
-Check the *photos* folder to see the actual image from the LCD
+Check the **photos** folder to see the actual image from the LCD
