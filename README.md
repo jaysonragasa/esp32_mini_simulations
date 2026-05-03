@@ -1,4 +1,4 @@
-# esp32_mini_simulations
+# esp32 mini simulations
 Some little simulations using ESP32 DEVKIT V1 and SH110X LCD
 
 - Dasai Muchi AI eyes
