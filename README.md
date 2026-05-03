@@ -16,3 +16,6 @@ Check the **photos** folder to see the actual image from the LCD
   
 Here's the sample demo using Wokwi.com - The code by the way supports both SSD1306 and SH110X OLEDS
 <img width="941" height="622" alt="Animation-05042026122335" src="https://github.com/user-attachments/assets/ecdfdb75-21a0-44df-b2b3-b2cf67edebdd" />
+
+Check out the actual simulation here  
+https://wokwi.com/projects/463017045039669249
