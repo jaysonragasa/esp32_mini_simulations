@@ -1,8 +1,8 @@
 /*
- * ESP32-S3 with SH1106 OLED Display (4-pin I2C)
+ * ESP32-S3 with SH1106 or SSD1306 OLED Display (4-pin I2C)
  * Interactive Screensavers + Lively Eyes
- * Cycles between modes automatically every 5 seconds OR on touch: 
- * Bubbles -> Pipes -> 3D Maze -> Ribbons -> Lively Eyes -> 3D Stars -> Fireplace -> 8-Bit Retro -> Fish Pond
+ * Cycles between modes automatically every 10 seconds OR on touch: 
+ * Bubbles -> Pipes -> 3D Maze -> Ribbons -> Lively Eyes -> 3D Stars -> Fireplace -> 8-Bit Retro -> Fish Pond -> Asteroids
  * * Hardware Connections:
  * OLED VCC -> ESP32-S3 3.3V
  * OLED GND -> ESP32-S3 GND
@@ -14,9 +14,17 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
 
 // --- Hardware Definitions ---
+// Uncomment the line below to use SSD1306 instead of SH110X
+// #define USE_SSD1306 
+
+#if defined(USE_SSD1306)
+#include <Adafruit_SSD1306.h>
+#else
+#include <Adafruit_SH110X.h>
+#endif
+
 #define SCREEN_WIDTH 128 
 #define SCREEN_HEIGHT 64 
 #define I2C_SDA 21
@@ -25,17 +33,25 @@
 #define OLED_RESET -1 
 #define SCREEN_ADDRESS 0x3C 
 
-Adafruit_SH1106G display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#if defined(USE_SSD1306)
+  Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+  #define OLED_WHITE SSD1306_WHITE
+  #define OLED_BLACK SSD1306_BLACK
+#else
+  Adafruit_SH1106G display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+  #define OLED_WHITE SH110X_WHITE
+  #define OLED_BLACK SH110X_BLACK
+#endif
 
 // --- Shared Enums & State Management ---
 enum ScreenSaverMode { BUBBLES, PIPES, MAZE, RIBBONS, EYES, STARS, FIREPLACE, RETRO_8BIT, FISH_POND, ASTEROIDS };
 ScreenSaverMode currentMode = BUBBLES;
 
-enum EyeState { NORMAL, HAPPY, SAD, BLINK }; // Moved to top for Arduino preprocessor compatibility
+enum EyeState { NORMAL, HAPPY, SAD, BLINK }; 
 
 // Timer variables
 unsigned long lastSwitchTime = 0;
-const unsigned long MODE_DURATION = 10 * 1000; // 5 seconds per mode
+const unsigned long MODE_DURATION = 10 * 1000; 
 
 // ==========================================
 // 1. BUBBLES SCREENSAVER
@@ -63,7 +79,6 @@ void updateBubbles() {
     bubbles[i].x += bubbles[i].vx;
     bubbles[i].y += bubbles[i].vy;
 
-    // Bounce off walls
     if (bubbles[i].x - bubbles[i].radius <= 0 || bubbles[i].x + bubbles[i].radius >= SCREEN_WIDTH) {
       bubbles[i].vx *= -1;
     }
@@ -71,7 +86,7 @@ void updateBubbles() {
       bubbles[i].vy *= -1;
     }
 
-    display.drawCircle((int)bubbles[i].x, (int)bubbles[i].y, (int)bubbles[i].radius, SH110X_WHITE);
+    display.drawCircle((int)bubbles[i].x, (int)bubbles[i].y, (int)bubbles[i].radius, OLED_WHITE);
   }
   display.display();
   delay(20);
@@ -111,8 +126,8 @@ void updatePipes() {
   if (nextX <= 0 || nextX >= SCREEN_WIDTH || nextY <= 0 || nextY >= SCREEN_HEIGHT || random(0, 5) == 0) {
     pipeDir = random(0, 4); 
   } else {
-    display.drawLine(pipeX, pipeY, nextX, nextY, SH110X_WHITE);
-    display.drawRect(nextX - 1, nextY - 1, 3, 3, SH110X_WHITE);
+    display.drawLine(pipeX, pipeY, nextX, nextY, OLED_WHITE);
+    display.drawRect(nextX - 1, nextY - 1, 3, 3, OLED_WHITE);
     pipeX = nextX;
     pipeY = nextY;
   }
@@ -138,10 +153,10 @@ void updateMaze() {
   int cx = SCREEN_WIDTH / 2;
   int cy = SCREEN_HEIGHT / 2;
 
-  display.drawLine(0, 0, cx, cy, SH110X_WHITE);
-  display.drawLine(SCREEN_WIDTH, 0, cx, cy, SH110X_WHITE);
-  display.drawLine(0, SCREEN_HEIGHT, cx, cy, SH110X_WHITE);
-  display.drawLine(SCREEN_WIDTH, SCREEN_HEIGHT, cx, cy, SH110X_WHITE);
+  display.drawLine(0, 0, cx, cy, OLED_WHITE);
+  display.drawLine(SCREEN_WIDTH, 0, cx, cy, OLED_WHITE);
+  display.drawLine(0, SCREEN_HEIGHT, cx, cy, OLED_WHITE);
+  display.drawLine(SCREEN_WIDTH, SCREEN_HEIGHT, cx, cy, OLED_WHITE);
 
   for (int i = 0; i < 5; i++) {
     float z = i + 1.0 - mazeDepthOffset;
@@ -151,7 +166,7 @@ void updateMaze() {
     int h = SCREEN_HEIGHT / z;
     
     if (w < SCREEN_WIDTH * 2) {
-      display.drawRect(cx - w / 2, cy - h / 2, w, h, SH110X_WHITE);
+      display.drawRect(cx - w / 2, cy - h / 2, w, h, OLED_WHITE);
     }
   }
   
@@ -181,7 +196,7 @@ void updateRibbons() {
     
     for (int x = 4; x <= SCREEN_WIDTH; x += 4) {
       int y = (SCREEN_HEIGHT / 2) + sin((x * 0.05) + phaseOffset) * amplitude;
-      display.drawLine(prevX, prevY, x, y, SH110X_WHITE);
+      display.drawLine(prevX, prevY, x, y, OLED_WHITE);
       prevX = x;
       prevY = y;
     }
@@ -220,18 +235,18 @@ void renderFace(int offsetX, int offsetY, int radiusMod, EyeState state) {
   int r = baseEyeRadius + radiusMod;
 
   if (state == BLINK) {
-    display.fillRect(lx - r, y - 2, r * 2, 4, SH110X_WHITE);
-    display.fillRect(rx - r, y - 2, r * 2, 4, SH110X_WHITE);
+    display.fillRect(lx - r, y - 2, r * 2, 4, OLED_WHITE);
+    display.fillRect(rx - r, y - 2, r * 2, 4, OLED_WHITE);
   } else {
-    display.fillCircle(lx, y, r, SH110X_WHITE);
-    display.fillCircle(rx, y, r, SH110X_WHITE);
+    display.fillCircle(lx, y, r, OLED_WHITE);
+    display.fillCircle(rx, y, r, OLED_WHITE);
 
     if (state == HAPPY) {
-      display.fillRect(lx - r - 1, y, (r + 1) * 2, r + 2, SH110X_BLACK);
-      display.fillRect(rx - r - 1, y, (r + 1) * 2, r + 2, SH110X_BLACK);
+      display.fillRect(lx - r - 1, y, (r + 1) * 2, r + 2, OLED_BLACK);
+      display.fillRect(rx - r - 1, y, (r + 1) * 2, r + 2, OLED_BLACK);
     } else if (state == SAD) {
-      display.fillRect(lx - r - 1, y - r - 3, (r + 1) * 2, r + 3, SH110X_BLACK);
-      display.fillRect(rx - r - 1, y - r - 3, (r + 1) * 2, r + 3, SH110X_BLACK);
+      display.fillRect(lx - r - 1, y - r - 3, (r + 1) * 2, r + 3, OLED_BLACK);
+      display.fillRect(rx - r - 1, y - r - 3, (r + 1) * 2, r + 3, OLED_BLACK);
     }
   }
   display.display();
@@ -353,9 +368,9 @@ void updateStars() {
     else if (stars[i].z < 20) size = 1; 
     
     if (size == 0) {
-      display.drawPixel(sx, sy, SH110X_WHITE); 
+      display.drawPixel(sx, sy, OLED_WHITE); 
     } else {
-      display.fillCircle(sx, sy, size, SH110X_WHITE);
+      display.fillCircle(sx, sy, size, OLED_WHITE);
     }
   }
   display.display();
@@ -388,25 +403,17 @@ void initFireplace() {
 void updateFireplace() {
   display.clearDisplay();
   
-  // Draw realistic logs
-  // Log 1
-  display.fillRoundRect(42, 56, 30, 6, 2, SH110X_WHITE);
-  display.drawFastHLine(45, 58, 20, SH110X_BLACK);
-  // Log 2
-  display.fillRoundRect(62, 56, 30, 6, 2, SH110X_WHITE);
-  display.drawFastHLine(65, 58, 20, SH110X_BLACK);
-  // Grate
-  display.drawLine(40, 62, 88, 62, SH110X_WHITE);
+  display.fillRoundRect(42, 56, 30, 6, 2, OLED_WHITE);
+  display.drawFastHLine(45, 58, 20, OLED_BLACK);
+  display.fillRoundRect(62, 56, 30, 6, 2, OLED_WHITE);
+  display.drawFastHLine(65, 58, 20, OLED_BLACK);
+  display.drawLine(40, 62, 88, 62, OLED_WHITE);
 
   for (int i = 0; i < NUM_FLAMES; i++) {
-    // Move flame up
     flames[i].y -= flames[i].speed;
     flames[i].life -= 0.02;
-
-    // Drift a bit
     flames[i].x += random(-1, 2);
 
-    // Reset flame when it "burns out"
     if (flames[i].life <= 0 || flames[i].y < 20) {
       flames[i].x = random(45, 83);
       flames[i].y = random(54, 60);
@@ -416,18 +423,13 @@ void updateFireplace() {
       flames[i].life = 1.0;
     }
 
-    // Draw Flame as a tapered "tongue"
-    // The flame gets thinner as it goes up
     int currentW = (int)(flames[i].w * flames[i].life);
     int currentH = (int)(flames[i].h * flames[i].life);
     
     if (currentW > 0 && currentH > 0) {
-      // Draw a filled center for intensity
-      display.fillRoundRect((int)flames[i].x - currentW/2, (int)flames[i].y, currentW, currentH, 2, SH110X_WHITE);
-      
-      // Occasionally draw a "spark" that flies higher
+      display.fillRoundRect((int)flames[i].x - currentW/2, (int)flames[i].y, currentW, currentH, 2, OLED_WHITE);
       if (random(0, 20) == 0) {
-        display.drawPixel((int)flames[i].x + random(-5, 5), (int)flames[i].y - random(0, 10), SH110X_WHITE);
+        display.drawPixel((int)flames[i].x + random(-5, 5), (int)flames[i].y - random(0, 10), OLED_WHITE);
       }
     }
   }
@@ -462,48 +464,42 @@ void updateRetro8Bit() {
   display.clearDisplay();
   animFrame++;
 
-  // Draw scrolling dotted ground
   for(int i = 0; i < SCREEN_WIDTH; i += 4) {
-    display.drawPixel(i - (animFrame % 4), 56, SH110X_WHITE);
+    display.drawPixel(i - (animFrame % 4), 56, OLED_WHITE);
   }
 
-  // Jumping Physics
   runnerY += runnerVY;
-  runnerVY += 1.0; // Gravity
+  runnerVY += 1.0; 
   if (runnerY >= 48) {
     runnerY = 48;
     runnerVY = 0;
     isJumping = false;
   }
   
-  // Autonomous look-ahead to dodge obstacles
   for (int i = 0; i < 3; i++) {
     if (obs[i].x > 10 && obs[i].x < 40 && !isJumping) {
-      runnerVY = -6.5; // Jump!
+      runnerVY = -6.5; 
       isJumping = true;
     }
   }
 
-  // Draw Runner (8x8 character body)
   int rx = 15;
   int ry = (int)runnerY;
-  display.fillRect(rx, ry, 8, 8, SH110X_WHITE);
+  display.fillRect(rx, ry, 8, 8, OLED_WHITE);
   
-  // Animate character legs
   if (isJumping) {
-    display.drawLine(rx, ry + 8, rx + 2, ry + 10, SH110X_WHITE);
-    display.drawLine(rx + 7, ry + 8, rx + 5, ry + 10, SH110X_WHITE);
+    display.drawLine(rx, ry + 8, rx + 2, ry + 10, OLED_WHITE);
+    display.drawLine(rx + 7, ry + 8, rx + 5, ry + 10, OLED_WHITE);
   } else {
     if ((animFrame / 2) % 2 == 0) {
-      display.drawLine(rx + 2, ry + 8, rx + 2, ry + 10, SH110X_WHITE);
-      display.drawLine(rx + 5, ry + 8, rx + 5, ry + 10, SH110X_WHITE);
+      display.drawLine(rx + 2, ry + 8, rx + 2, ry + 10, OLED_WHITE);
+      display.drawLine(rx + 5, ry + 8, rx + 5, ry + 10, OLED_WHITE);
     } else {
-      display.drawLine(rx + 1, ry + 8, rx - 1, ry + 10, SH110X_WHITE);
-      display.drawLine(rx + 6, ry + 8, rx + 8, ry + 10, SH110X_WHITE);
+      display.drawLine(rx + 1, ry + 8, rx - 1, ry + 10, OLED_WHITE);
+      display.drawLine(rx + 6, ry + 8, rx + 8, ry + 10, OLED_WHITE);
     }
   }
 
-  // Draw and move obstacles
   for (int i = 0; i < 3; i++) {
     obs[i].x -= 3;
     if (obs[i].x < -10) {
@@ -511,8 +507,7 @@ void updateRetro8Bit() {
       obs[i].w = random(4, 10);
       obs[i].h = random(6, 14);
     }
-    // Draw obstacle block sitting on the ground
-    display.fillRect((int)obs[i].x, 56 - obs[i].h, obs[i].w, obs[i].h, SH110X_WHITE);
+    display.fillRect((int)obs[i].x, 56 - obs[i].h, obs[i].w, obs[i].h, OLED_WHITE);
   }
   
   display.display();
@@ -566,20 +561,17 @@ void initAsteroids() {
 void updateAsteroids() {
   display.clearDisplay();
 
-  // 1. Update Ship (Virtual autonomous movement)
-  ship.angle += 0.02; // Slowly rotate
+  ship.angle += 0.02; 
   ship.vx = cos(ship.angle) * 0.5;
   ship.vy = sin(ship.angle) * 0.5;
   ship.x += ship.vx;
   ship.y += ship.vy;
 
-  // Ship wrapping
   if (ship.x < 0) ship.x = SCREEN_WIDTH;
   if (ship.x > SCREEN_WIDTH) ship.x = 0;
   if (ship.y < 0) ship.y = SCREEN_HEIGHT;
   if (ship.y > SCREEN_HEIGHT) ship.y = 0;
 
-  // Draw Ship (Triangle)
   int sX = (int)ship.x;
   int sY = (int)ship.y;
   float noseX = sX + cos(ship.angle) * 4;
@@ -588,9 +580,8 @@ void updateAsteroids() {
   float leftY = sY + sin(ship.angle + 2.5) * 3;
   float rightX = sX + cos(ship.angle - 2.5) * 3;
   float rightY = sY + sin(ship.angle - 2.5) * 3;
-  display.drawTriangle(noseX, noseY, leftX, leftY, rightX, rightY, SH110X_WHITE);
+  display.drawTriangle(noseX, noseY, leftX, leftY, rightX, rightY, OLED_WHITE);
 
-  // 2. Randomly fire bullet
   if (random(0, 50) == 0) {
     for (int i = 0; i < NUM_BULLETS; i++) {
       if (!bullets[i].active) {
@@ -604,33 +595,28 @@ void updateAsteroids() {
     }
   }
 
-  // 3. Update and Draw Bullets
   for (int i = 0; i < NUM_BULLETS; i++) {
     if (!bullets[i].active) continue;
     bullets[i].x += bullets[i].vx;
     bullets[i].y += bullets[i].vy;
-    display.drawPixel((int)bullets[i].x, (int)bullets[i].y, SH110X_WHITE);
+    display.drawPixel((int)bullets[i].x, (int)bullets[i].y, OLED_WHITE);
 
     if (bullets[i].x < 0 || bullets[i].x > SCREEN_WIDTH || bullets[i].y < 0 || bullets[i].y > SCREEN_HEIGHT) {
       bullets[i].active = false;
     }
   }
 
-  // 4. Update and Draw Asteroids
   for (int i = 0; i < NUM_ASTEROIDS; i++) {
     asteroids[i].x += asteroids[i].vx;
     asteroids[i].y += asteroids[i].vy;
 
-    // Wrapping
     if (asteroids[i].x < 0) asteroids[i].x = SCREEN_WIDTH;
     if (asteroids[i].x > SCREEN_WIDTH) asteroids[i].x = 0;
     if (asteroids[i].y < 0) asteroids[i].y = SCREEN_HEIGHT;
     if (asteroids[i].y > SCREEN_HEIGHT) asteroids[i].y = 0;
 
-    // Draw Asteroid (Jagged Circle)
-    display.drawCircle((int)asteroids[i].x, (int)asteroids[i].y, asteroids[i].size, SH110X_WHITE);
-    // Add a small "crater" line for detail
-    display.drawLine((int)asteroids[i].x, (int)asteroids[i].y, (int)asteroids[i].x + 2, (int)asteroids[i].y + 2, SH110X_BLACK);
+    display.drawCircle((int)asteroids[i].x, (int)asteroids[i].y, asteroids[i].size, OLED_WHITE);
+    display.drawLine((int)asteroids[i].x, (int)asteroids[i].y, (int)asteroids[i].x + 2, (int)asteroids[i].y + 2, OLED_BLACK);
   }
 
   display.display();
@@ -666,26 +652,20 @@ void initFishPond() {
 void updateFishPond() {
   display.clearDisplay();
 
-  // Draw some static background Lily Pads
-  display.fillCircle(20, 15, 8, SH110X_WHITE);
-  display.fillTriangle(20, 15, 28, 10, 28, 20, SH110X_BLACK); // Lily pad slice
-  
-  display.fillCircle(110, 50, 12, SH110X_WHITE);
-  display.fillTriangle(110, 50, 105, 62, 115, 62, SH110X_BLACK);
+  display.fillCircle(20, 15, 8, OLED_WHITE);
+  display.fillTriangle(20, 15, 28, 10, 28, 20, OLED_BLACK); 
+  display.fillCircle(110, 50, 12, OLED_WHITE);
+  display.fillTriangle(110, 50, 105, 62, 115, 62, OLED_BLACK);
 
-  // Update and draw fishes
   for (int i = 0; i < NUM_FISH; i++) {
-    // Swimming mechanics
     fishes[i].x += cos(fishes[i].angle) * fishes[i].speed;
     fishes[i].y += sin(fishes[i].angle) * fishes[i].speed;
     fishes[i].tailWag += fishes[i].wagSpeed;
 
-    // Gentle random steering
     if (random(0, 10) == 0) {
       fishes[i].angle += random(-20, 20) / 100.0;
     }
 
-    // Screen wrapping (torus topology)
     if (fishes[i].x < -15) fishes[i].x = SCREEN_WIDTH + 15;
     if (fishes[i].x > SCREEN_WIDTH + 15) fishes[i].x = -15;
     if (fishes[i].y < -15) fishes[i].y = SCREEN_HEIGHT + 15;
@@ -696,35 +676,31 @@ void updateFishPond() {
     float x = fishes[i].x;
     float y = fishes[i].y;
 
-    // Body segment coordinates
     float headX = x + cos(a) * sz;
     float headY = y + sin(a) * sz;
     float tailBaseX = x - cos(a) * sz;
     float tailBaseY = y - sin(a) * sz;
 
-    // Draw Fish Body (Three overlapping circles for a smooth teardrop/fish shape)
-    display.fillCircle(x, y, sz / 1.5, SH110X_WHITE);                 // Mid body
-    display.fillCircle(headX, headY, sz / 2, SH110X_WHITE);           // Head
-    display.fillCircle(tailBaseX, tailBaseY, sz / 2.5, SH110X_WHITE); // Tail base
+    display.fillCircle(x, y, sz / 1.5, OLED_WHITE);                 
+    display.fillCircle(headX, headY, sz / 2, OLED_WHITE);           
+    display.fillCircle(tailBaseX, tailBaseY, sz / 2.5, OLED_WHITE); 
 
-    // Draw Animating Tail (Triangle)
     float tailAngle = a + PI;
-    float wag = sin(fishes[i].tailWag) * 0.6; // Tail wag angle offset
+    float wag = sin(fishes[i].tailWag) * 0.6; 
     float tTip1X = tailBaseX + cos(tailAngle - 0.4 + wag) * sz * 1.5;
     float tTip1Y = tailBaseY + sin(tailAngle - 0.4 + wag) * sz * 1.5;
     float tTip2X = tailBaseX + cos(tailAngle + 0.4 + wag) * sz * 1.5;
     float tTip2Y = tailBaseY + sin(tailAngle + 0.4 + wag) * sz * 1.5;
-    display.fillTriangle(tailBaseX, tailBaseY, tTip1X, tTip1Y, tTip2X, tTip2Y, SH110X_WHITE);
+    display.fillTriangle(tailBaseX, tailBaseY, tTip1X, tTip1Y, tTip2X, tTip2Y, OLED_WHITE);
 
-    // Draw Animating Pectoral Fins (Lines)
     float finAngle = PI / 2.5; 
-    float finWag = sin(fishes[i].tailWag + PI) * 0.3; // Fins move slightly inverse to tail
+    float finWag = sin(fishes[i].tailWag + PI) * 0.3; 
     float lFinX = x + cos(a - finAngle + finWag) * sz * 1.2;
     float lFinY = y + sin(a - finAngle + finWag) * sz * 1.2;
     float rFinX = x + cos(a + finAngle - finWag) * sz * 1.2;
     float rFinY = y + sin(a + finAngle - finWag) * sz * 1.2;
-    display.drawLine(x, y, lFinX, lFinY, SH110X_WHITE);
-    display.drawLine(x, y, rFinX, rFinY, SH110X_WHITE);
+    display.drawLine(x, y, lFinX, lFinY, OLED_WHITE);
+    display.drawLine(x, y, rFinX, rFinY, OLED_WHITE);
   }
   
   display.display();
@@ -741,15 +717,21 @@ void setup() {
   pinMode(TOUCH_PIN, INPUT);
   Wire.begin(I2C_SDA, I2C_SCL);
 
+#if defined(USE_SSD1306)
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed!"));
+    for(;;); 
+  }
+#else
   if (!display.begin(SCREEN_ADDRESS, true)) {
     Serial.println(F("SH1106 allocation failed!"));
     for(;;); 
   }
+#endif
 
-  // Show intro text
   display.clearDisplay();
   display.setTextSize(1);             
-  display.setTextColor(SH110X_WHITE); 
+  display.setTextColor(OLED_WHITE); 
   display.setCursor(15, 20);             
   display.println(F("Touch or Wait"));
   display.setCursor(20, 40);             
@@ -757,22 +739,17 @@ void setup() {
   display.display(); 
   delay(2000); 
 
-  // Initialize first screensaver and set timer
   initBubbles();
   lastSwitchTime = millis();
 }
 
 void loop() {
-  bool manualSwitch = false; //(digitalRead(TOUCH_PIN) == HIGH);
+  bool manualSwitch = false; 
   bool autoSwitch = (millis() - lastSwitchTime > MODE_DURATION);
 
-  // 1. Check for Touch input or Timer to switch modes
   if (manualSwitch || autoSwitch) {
-    
-    // Cycle to the next mode (10 modes total now)
     currentMode = (ScreenSaverMode)((currentMode + 1) % 10);
     
-    // Initialize the newly selected mode
     switch (currentMode) {
       case BUBBLES: initBubbles(); break;
       case PIPES:   initPipes(); break;
@@ -786,22 +763,17 @@ void loop() {
       case ASTEROIDS: initAsteroids(); break;
     }
 
-    // Reset the switch timer
     lastSwitchTime = millis();
 
-    // If triggered by touch, wait until the touch sensor is released 
-    // so it doesn't cycle incredibly fast while held down
     if (manualSwitch) {
       while(digitalRead(TOUCH_PIN) == HIGH) {
         delay(10);
       }
-      delay(50); // Small debounce delay after letting go
-      // Reset timer again to ensure a full 5 seconds after releasing
+      delay(50); 
       lastSwitchTime = millis(); 
     }
   }
 
-  // 2. Update the current animation frame
   switch (currentMode) {
       case BUBBLES: updateBubbles(); break;
       case PIPES:   updatePipes(); break;
